@@ -13,8 +13,8 @@ tabular:
   impute_numeric: "median"
   impute_categorical: "most_frequent"
   standardize: true
-  keep_numeric: ["AGE", "MMSE", "EDUCATION", "CDRSB", "ADAS"]   # /TODO: adjust to your columns
-  keep_categorical: ["SEX", "APOE4"]                             # /TODO: adjust to your columns
+  na_drop_threshold: 0.40          # drop columns with >40% NA
+  drop_always: ["RID", "SITEID", "VISCODE", "EXAMDATE"]  # safe non-feature IDs/dates
 
 # Label mapping (int -> string)
 labels:
