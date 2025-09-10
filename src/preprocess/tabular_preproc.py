@@ -65,6 +65,7 @@ def main():
     out.insert(1, "DIAGNOSIS", df["DIAGNOSIS"].values)
 
     out_path = Path(cfg["processed_root"]) / "tabular_feats.parquet"
+    out_path.parent.mkdir(parents=True, exist_ok=True)   # <-- add this
     out.to_parquet(out_path, index=False)
     print(f"[OK] wrote {out_path} | shape={out.shape}")
     print(f" kept {len(num_cols)} numeric + {len(cat_cols)} categorical columns (after dropping >{na_thresh*100:.0f}% NA)")
