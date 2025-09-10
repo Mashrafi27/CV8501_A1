@@ -1,0 +1,28 @@
+# Raw, read-only (shared)
+raw_root: "/apps/local/shared/CV8501/assignment1/data/ADNI"
+images_root: "/apps/local/shared/CV8501/assignment1/data/ADNI/Raw/Images"
+excel_path: "/apps/local/shared/CV8501/assignment1/data/ADNI/ADNI_Subset_Diagnosis_Filtered.xlsx"
+
+# Outputs (your repo)
+interim_root: "work/ADNI/Interim"
+processed_root: "work/ADNI/Processed"
+splits_root: "work/ADNI/Splits"
+
+# Tabular/EHR
+tabular:
+  impute_numeric: "median"
+  impute_categorical: "most_frequent"
+  standardize: true
+  keep_numeric: ["AGE", "MMSE", "EDUCATION", "CDRSB", "ADAS"]   # /TODO: adjust to your columns
+  keep_categorical: ["SEX", "APOE4"]                             # /TODO: adjust to your columns
+
+# Label mapping (int -> string)
+labels:
+  map_int_to_str: { "1": "CN", "2": "MCI", "3": "AD" }
+
+# MRI preprocess (paths/tools you plan to use)
+mri:
+  do_n4_bias: true
+  skullstrip: "hd-bet"    # /TODO: "bet" or "hd-bet"
+  template_mni: ""        # /TODO: path to MNI template if available
+  target_spacing_mm: 1.0

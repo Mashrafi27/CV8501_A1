@@ -1,0 +1,14 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Local envs
+.venv/
+*.egg-info/
+
+# Large/derived outputs
+work/
+logs/
+
+# OS clutter
+.DS_Store
