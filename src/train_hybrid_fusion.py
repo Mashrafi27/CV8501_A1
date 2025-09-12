@@ -19,12 +19,25 @@ def read_ids(root):
     def _r(name): return set((Path(root)/name).read_text().splitlines())
     return _r("train_ids.txt"), _r("val_ids.txt"), _r("test_ids.txt")
 
-def build_mm_dataframe(cfg, ids):
-    std_idx = pd.read_csv(Path(cfg["interim_root"])/"mri_std"/"index.csv")
-    ehr = pd.read_parquet(Path(cfg["processed_root"])/"tabular_feats.parquet")
+def build_mm_dataframe_and_ehr_cols(cfg, ids):
+    from pathlib import Path
+    import pandas as pd
+
+    std_idx = pd.read_csv(Path(cfg["interim_root"]) / "mri_std" / "index.csv")         # PTID, std_path, out_shape_zyx, out_spacing_xyz_mm
+    ehr     = pd.read_parquet(Path(cfg["processed_root"]) / "tabular_feats.parquet")   # PTID, DIAGNOSIS, <EHR features>
+
+    # EHR feature columns must come ONLY from the parquet (not from std_idx)
+    ehr_cols = [c for c in ehr.columns if c not in {"PTID", "DIAGNOSIS"}]
+
     df = std_idx.merge(ehr, on="PTID", how="inner")
     df = df[df["DIAGNOSIS"].notna()]
-    return df[df["PTID"].isin(ids)].reset_index(drop=True)
+    df = df[df["PTID"].isin(ids)].reset_index(drop=True)
+
+    # Coerce just the EHR columns to numeric float32 (robust to bools/ints); NaNs -> 0
+    df.loc[:, ehr_cols] = df.loc[:, ehr_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0).astype("float32")
+
+    return df, ehr_cols
+
 
 @torch.no_grad()
 def evaluate(model, loader, device):
@@ -64,14 +77,17 @@ def main():
 
     cfg = load_cfg(args.cfg)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"[INFO] Using device: {device}")
 
     tr_ids, va_ids, te_ids = read_ids(cfg["splits_root"])
-    df_tr, df_va, df_te = (build_mm_dataframe(cfg, ids) for ids in [tr_ids, va_ids, te_ids])
-    ehr_cols = [c for c in df_tr.columns if c not in {"PTID","DIAGNOSIS","std_path"}]
+    df_tr, ehr_cols = build_mm_dataframe_and_ehr_cols(cfg, tr_ids)
+    df_va, _        = build_mm_dataframe_and_ehr_cols(cfg, va_ids)
+    df_te, _        = build_mm_dataframe_and_ehr_cols(cfg, te_ids)
 
-    dl_tr = DataLoader(MMHybridDataset(df_tr, ehr_cols), batch_size=args.batch, shuffle=True,  num_workers=4, pin_memory=True)
-    dl_va = DataLoader(MMHybridDataset(df_va, ehr_cols), batch_size=args.batch, shuffle=False, num_workers=4, pin_memory=True)
-    dl_te = DataLoader(MMHybridDataset(df_te, ehr_cols), batch_size=args.batch, shuffle=False, num_workers=4, pin_memory=True)
+
+    dl_tr = DataLoader(MMHybridDataset(df_tr, ehr_cols), batch_size=args.batch, shuffle=True,  num_workers=2, pin_memory=True)
+    dl_va = DataLoader(MMHybridDataset(df_va, ehr_cols), batch_size=args.batch, shuffle=False, num_workers=2, pin_memory=True)
+    dl_te = DataLoader(MMHybridDataset(df_te, ehr_cols), batch_size=args.batch, shuffle=False, num_workers=2, pin_memory=True)
 
     model = HybridModel(len(ehr_cols), pretrained_mri=args.pretrained_mri, dropout=args.dropout).to(device)
 
