@@ -10,10 +10,16 @@ def build_mri_backbone(pretrained=True):
     return m, d_mri
 
 def build_ehr_encoder(n_num_features, d_token=192, n_layers=2, n_heads=4, d_ff=384, dropout=0.2):
-    enc = rtdl.FTTransformer.make_default(
-        n_num_features=n_num_features, cat_cardinalities=[],
-        d_token=d_token, n_heads=n_heads, n_layers=n_layers,
-        attention_dropout=dropout, ffn_dropout=dropout,
+    enc = rtdl.FTTransformer(
+        n_num_features=n_num_features,
+        cat_cardinalities=[],
+        d_token=d_token,
+        n_blocks=n_layers,
+        attention_n_heads=n_heads,
+        ffn_d_hidden=d_ff,
+        attention_dropout=dropout,
+        ffn_dropout=dropout,
+        residual_dropout=dropout,
         prenormalization=True
     )
     return enc, d_token
