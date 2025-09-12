@@ -8,9 +8,9 @@ from sklearn.metrics import f1_score, balanced_accuracy_score, roc_auc_score
 import yaml
 from tqdm import tqdm
 
-from data.mm_hybrid_dataset import MMHybridDataset
-from models.hybrid_model import HybridModel
-from utils.logging_utils import try_wandb_init, wandb_log, plot_conf_mat
+from src.data.mm_hybrid_dataset import MMHybridDataset
+from src.models.hybrid_model import HybridModel
+from src.utils.logging_utils import try_wandb_init, wandb_log, plot_conf_mat
 
 def load_cfg(p):
     with open(p,"r") as f: return yaml.safe_load(f)
