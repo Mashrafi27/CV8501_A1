@@ -8,6 +8,7 @@ from sklearn.metrics import f1_score, balanced_accuracy_score, roc_auc_score
 from tqdm import tqdm
 import yaml
 from torchvision.models.video import r3d_18, R3D_18_Weights
+import wandb  # <-- added
 
 class MRI3DNPY(Dataset):
     def __init__(self, df, target_shape=(64,64,64)):
@@ -60,10 +61,27 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--pretrained", action="store_true")
     ap.add_argument("--seed", type=int, default=42)
+    # wandb args (added)
+    ap.add_argument("--project", default="cv8501-adni")
+    ap.add_argument("--run_name", default="mri-only-r3d18")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     cfg = load_cfg(args.cfg); device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # wandb init (added)
+    wandb.init(
+        project=args.project,
+        name=args.run_name,
+        config={
+            "cfg": args.cfg,
+            "epochs": args.epochs,
+            "batch": args.batch,
+            "lr": args.lr,
+            "pretrained": bool(args.pretrained),
+            "seed": args.seed,
+        },
+    )
 
     # MRI index + labels (use EHR parquet for labels for consistency)
     std_idx = pd.read_csv(Path(cfg["interim_root"]) / "mri_std" / "index.csv")       # PTID, std_path, ...
@@ -104,7 +122,18 @@ def main():
             opt.zero_grad(); loss.backward(); opt.step()
             loss_sum += float(loss)
         m_val, _, _, _ = eval_probs(model, dl_va, device)
-        print(f"[{ep:03d}] loss={loss_sum/len(dl_tr):.4f} | val_f1={m_val['macro_f1']:.4f}")
+        avg_loss = loss_sum/len(dl_tr)
+        print(f"[{ep:03d}] loss={avg_loss:.4f} | val_f1={m_val['macro_f1']:.4f}")
+
+        # wandb per-epoch log (added)
+        wandb.log({
+            "epoch": ep,
+            "train/loss": avg_loss,
+            "val/macro_f1": m_val["macro_f1"],
+            "val/balanced_acc": m_val["balanced_acc"],
+            "val/roc_auc_ovo": m_val["roc_auc_ovo"],
+        }, step=ep)
+
         if m_val["macro_f1"] > best_f1:
             best_f1, best_state, bad = m_val["macro_f1"], model.state_dict(), 0
         else:
@@ -123,6 +152,14 @@ def main():
     np.save(out/"test_probs.npy", Pt); np.save(out/"test_labels.npy", Yt); np.save(out/"test_ids.npy", IDt)
     (out/"metrics.json").write_text(json.dumps({"val_best_f1": best_f1, "val": m_val, "test": m_te}, indent=2))
     print(f"[OK] MRI baseline saved → {out}")
+
+    # wandb summary & finish (added)
+    wandb.summary["val/best_macro_f1"] = best_f1
+    wandb.summary["val/final_macro_f1"] = m_val["macro_f1"]
+    wandb.summary["test/macro_f1"] = m_te["macro_f1"]
+    wandb.summary["test/balanced_acc"] = m_te["balanced_acc"]
+    wandb.summary["test/roc_auc_ovo"] = m_te["roc_auc_ovo"]
+    wandb.finish()
 
 if __name__ == "__main__":
     main()

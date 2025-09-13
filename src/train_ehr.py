@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 from sklearn.metrics import f1_score, balanced_accuracy_score, roc_auc_score
 from tqdm import tqdm
 import yaml
+import wandb  # <-- added
 
 # ----- tiny EHR dataset -----
 class EHRDs(Dataset):
@@ -66,6 +67,12 @@ def main():
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     cfg = load_cfg(args.cfg); device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # init wandb (added)
+    wandb.init(project="ehr-mlp", config={
+        "cfg": args.cfg, "epochs": args.epochs, "batch": args.batch,
+        "lr": args.lr, "dropout": args.dropout, "seed": args.seed
+    })
+
     # EHR features & columns
     ehr = pd.read_parquet(Path(cfg["processed_root"]) / "tabular_feats.parquet")  # PTID, DIAGNOSIS, features...
     feat_cols = [c for c in ehr.columns if c not in {"PTID","DIAGNOSIS"}]
@@ -100,7 +107,18 @@ def main():
             loss_sum += float(loss)
             pbar.set_postfix(loss=f"{loss_sum/max(1,pbar.n):.4f}")
         m_val, _, _, _ = eval_probs(model, dl_va, device)
-        print(f"[{ep:03d}] loss={loss_sum/len(dl_tr):.4f} | val_f1={m_val['macro_f1']:.4f}")
+        avg_loss = loss_sum/len(dl_tr)
+        print(f"[{ep:03d}] loss={avg_loss:.4f} | val_f1={m_val['macro_f1']:.4f}")
+
+        # log to wandb every epoch (added)
+        wandb.log({
+            "epoch": ep,
+            "train/loss": avg_loss,
+            "val/macro_f1": m_val["macro_f1"],
+            "val/balanced_acc": m_val["balanced_acc"],
+            "val/roc_auc_ovo": m_val["roc_auc_ovo"]
+        }, step=ep)
+
         if m_val["macro_f1"] > best_f1:
             best_f1, best_state, bad = m_val["macro_f1"], model.state_dict(), 0
         else:
@@ -119,6 +137,14 @@ def main():
     np.save(out/"test_probs.npy", Pt); np.save(out/"test_labels.npy", Yt); np.save(out/"test_ids.npy", IDt)
     (out/"metrics.json").write_text(json.dumps({"val_best_f1": best_f1, "val": m_val, "test": m_te}, indent=2))
     print(f"[OK] EHR baseline saved → {out}")
+
+    # final wandb summary (added)
+    wandb.summary["val/best_macro_f1"] = best_f1
+    wandb.summary["val/final_macro_f1"] = m_val["macro_f1"]
+    wandb.summary["test/macro_f1"] = m_te["macro_f1"]
+    wandb.summary["test/balanced_acc"] = m_te["balanced_acc"]
+    wandb.summary["test/roc_auc_ovo"] = m_te["roc_auc_ovo"]
+    wandb.finish()
 
 if __name__ == "__main__":
     main()

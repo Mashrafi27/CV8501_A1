@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import f1_score, balanced_accuracy_score, roc_auc_score
 from tqdm import tqdm
 import yaml
+import wandb  # <-- added
 
 from src.data.mm_hybrid_dataset import MMHybridDataset
 from src.models.late_fusion_model import LateFusionModel
@@ -64,12 +65,25 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.5, help="MRI probability weight in fusion")
     ap.add_argument("--pretrained_mri", action="store_true")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--project", default="cv8501-adni")  # <-- added (keeps naming consistent)
+    ap.add_argument("--run_name", default="late-fusion")  # <-- added
     args = ap.parse_args()
 
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     cfg = load_cfg(args.cfg)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] device={device} | alpha={args.alpha}")
+
+    # wandb init (added)
+    wandb.init(
+        project=args.project,
+        name=f"{args.run_name}-alpha{args.alpha}",
+        config={
+            "cfg": args.cfg, "epochs": args.epochs, "batch": args.batch,
+            "lr": args.lr, "dropout": args.dropout, "alpha": args.alpha,
+            "pretrained_mri": bool(args.pretrained_mri), "seed": args.seed
+        }
+    )
 
     tr_ids, va_ids, te_ids = read_ids(cfg["splits_root"])
     df_tr, ehr_cols = build_mm_dataframe_and_ehr_cols(cfg, tr_ids)
@@ -113,7 +127,23 @@ def main():
         m_mri, _, _ = eval_mode(model, dl_va, device, "mri")
         m_ehr, _, _ = eval_mode(model, dl_va, device, "ehr")
         m_fus, _, _ = eval_mode(model, dl_va, device, "fusion")
-        print(f"[{ep:03d}] loss={loss_sum/len(dl_tr):.4f} | val F1 (mri={m_mri['macro_f1']:.3f}, ehr={m_ehr['macro_f1']:.3f}, fused={m_fus['macro_f1']:.3f})")
+        epoch_loss = loss_sum/len(dl_tr)
+        print(f"[{ep:03d}] loss={epoch_loss:.4f} | val F1 (mri={m_mri['macro_f1']:.3f}, ehr={m_ehr['macro_f1']:.3f}, fused={m_fus['macro_f1']:.3f})")
+
+        # wandb per-epoch logging (added)
+        wandb.log({
+            "epoch": ep,
+            "train/loss": epoch_loss,
+            "val/mri_macro_f1": m_mri["macro_f1"],
+            "val/mri_balanced_acc": m_mri["balanced_acc"],
+            "val/mri_roc_auc_ovo": m_mri["roc_auc_ovo"],
+            "val/ehr_macro_f1": m_ehr["macro_f1"],
+            "val/ehr_balanced_acc": m_ehr["balanced_acc"],
+            "val/ehr_roc_auc_ovo": m_ehr["roc_auc_ovo"],
+            "val/fused_macro_f1": m_fus["macro_f1"],
+            "val/fused_balanced_acc": m_fus["balanced_acc"],
+            "val/fused_roc_auc_ovo": m_fus["roc_auc_ovo"]
+        }, step=ep)
 
         if m_fus["macro_f1"] > best["f1"]:
             best.update(f1=m_fus["macro_f1"], state=model.state_dict(), epoch=ep); bad = 0
@@ -141,6 +171,20 @@ def main():
     np.save(out_dir/"test_probs_ehr.npy", Pe)
     np.save(out_dir/"test_probs_fused.npy", Pf)
     print(f"[OK] saved to {out_dir}")
+
+    # final wandb summary & finish (added)
+    wandb.summary["val/best_fused_macro_f1"] = best["f1"]
+    wandb.summary["val/best_epoch"] = best["epoch"]
+    wandb.summary["test/mri_macro_f1"] = m_mri["macro_f1"]
+    wandb.summary["test/ehr_macro_f1"] = m_ehr["macro_f1"]
+    wandb.summary["test/fused_macro_f1"] = m_fus["macro_f1"]
+    wandb.summary["test/mri_balanced_acc"] = m_mri["balanced_acc"]
+    wandb.summary["test/ehr_balanced_acc"] = m_ehr["balanced_acc"]
+    wandb.summary["test/fused_balanced_acc"] = m_fus["balanced_acc"]
+    wandb.summary["test/mri_roc_auc_ovo"] = m_mri["roc_auc_ovo"]
+    wandb.summary["test/ehr_roc_auc_ovo"] = m_ehr["roc_auc_ovo"]
+    wandb.summary["test/fused_roc_auc_ovo"] = m_fus["roc_auc_ovo"]
+    wandb.finish()
 
 if __name__ == "__main__":
     main()
