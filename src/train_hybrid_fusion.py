@@ -68,7 +68,7 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--dropout", type=float, default=0.2)
     ap.add_argument("--pretrained_mri", action="store_true")
-    ap.add_argument("--project", default="cv8501-adni")
+    ap.add_argument("--project", default="adni-experiments")
     ap.add_argument("--run_name", default="hybrid")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()

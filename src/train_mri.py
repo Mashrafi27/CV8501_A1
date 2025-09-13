@@ -62,7 +62,7 @@ def main():
     ap.add_argument("--pretrained", action="store_true")
     ap.add_argument("--seed", type=int, default=42)
     # wandb args (added)
-    ap.add_argument("--project", default="cv8501-adni")
+    ap.add_argument("--project", default="adni-experiments")
     ap.add_argument("--run_name", default="mri-only-r3d18")
     args = ap.parse_args()
 

@@ -65,7 +65,7 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.5, help="MRI probability weight in fusion")
     ap.add_argument("--pretrained_mri", action="store_true")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--project", default="cv8501-adni")  # <-- added (keeps naming consistent)
+    ap.add_argument("--project", default="adni-experiments")  # <-- added (keeps naming consistent)
     ap.add_argument("--run_name", default="late-fusion")  # <-- added
     args = ap.parse_args()
 

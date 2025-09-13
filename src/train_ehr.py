@@ -62,13 +62,19 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--dropout", type=float, default=0.2)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--project", default="adni-experiments")
+    ap.add_argument("--run_name", default="ehr-mlp")
+
     args = ap.parse_args()
 
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     cfg = load_cfg(args.cfg); device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # init wandb (added)
-    wandb.init(project="ehr-mlp", config={
+    wandb.init(
+        project=args.project,
+        name=args.run_name,
+        config={
         "cfg": args.cfg, "epochs": args.epochs, "batch": args.batch,
         "lr": args.lr, "dropout": args.dropout, "seed": args.seed
     })
