@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 
+
+*.sh
+*.ipynb
 # Local envs
 .venv/
 *.egg-info/
@@ -12,7 +15,7 @@ logs/
 data/
 wandb/
 slurm*
-
+figures/
 
 # OS clutter
 .DS_Store
