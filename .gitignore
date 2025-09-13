@@ -9,6 +9,10 @@ __pycache__/
 # Large/derived outputs
 work/
 logs/
+data/
+wandb/
+slurm*
+
 
 # OS clutter
 .DS_Store
