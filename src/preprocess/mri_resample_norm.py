@@ -54,7 +54,7 @@ def clip_and_znorm_global(vol: np.ndarray) -> np.ndarray:
     if v.size == 0:
         return np.zeros_like(vol, dtype=np.float32)
 
-    lo, hi = np.percentile(v, [0.5, 99.5])
+    lo, hi = np.percentile(v, [2.0, 98.0])
     vol = np.clip(vol, lo, hi)
 
     m = float(vol.mean())
